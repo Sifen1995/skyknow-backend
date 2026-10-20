@@ -1,0 +1,30 @@
+{"id": "q01", "lang": "en", "type": "direct", "question": "How do I replace a lost SIM card?", "correct_pages": ["sim-swap-replacement"]}
+{"id": "q02", "lang": "en", "type": "direct", "question": "How can I reverse a telebirr transfer sent to the wrong number?", "correct_pages": ["telebirr-wrong-transfer"]}
+{"id": "q03", "lang": "en", "type": "direct", "question": "How do I reset my telebirr PIN?", "correct_pages": ["telebirr-forgot-pin"]}
+{"id": "q04", "lang": "en", "type": "direct", "question": "How do I activate a data package?", "correct_pages": ["data-package-activation"]}
+{"id": "q05", "lang": "en", "type": "direct", "question": "How do I check my airtime balance?", "correct_pages": ["data-balance-check"]}
+{"id": "q06", "lang": "en", "type": "direct", "question": "How do I set up call forwarding?", "correct_pages": ["call-forwarding-setup"]}
+{"id": "q07", "lang": "en", "type": "paraphrase", "question": "My phone was stolen, what should I do with my number?", "correct_pages": ["lost-stolen-phone"]}
+{"id": "q08", "lang": "en", "type": "paraphrase", "question": "I sent money to the wrong person by mistake", "correct_pages": ["telebirr-wrong-transfer"]}
+{"id": "q09", "lang": "en", "type": "paraphrase", "question": "I forgot the secret code for my mobile money wallet", "correct_pages": ["telebirr-forgot-pin"]}
+{"id": "q10", "lang": "en", "type": "paraphrase", "question": "My internet is very slow today", "correct_pages": ["slow-internet-troubleshooting"]}
+{"id": "q11", "lang": "en", "type": "paraphrase", "question": "I am travelling abroad and want to use my phone there", "correct_pages": ["roaming-activation"]}
+{"id": "q12", "lang": "en", "type": "paraphrase", "question": "Can I give some of my credit to a friend?", "correct_pages": ["airtime-transfer"]}
+{"id": "q13", "lang": "en", "type": "paraphrase", "question": "Texts are not arriving on my phone", "correct_pages": ["sms-not-received"]}
+{"id": "q14", "lang": "en", "type": "paraphrase", "question": "I want to switch to a cheaper monthly plan", "correct_pages": ["change-tariff-plan"]}
+{"id": "q15", "lang": "en", "type": "paraphrase", "question": "My monthly invoice has a charge I do not recognise", "correct_pages": ["postpaid-bill-dispute"]}
+{"id": "q16", "lang": "en", "type": "short", "question": "SIM lost", "correct_pages": ["sim-swap-replacement", "lost-stolen-phone"]}
+{"id": "q17", "lang": "en", "type": "short", "question": "no signal", "correct_pages": ["no-network-signal-troubleshooting"]}
+{"id": "q18", "lang": "en", "type": "short", "question": "voicemail", "correct_pages": ["voicemail-setup"]}
+{"id": "q19", "lang": "en", "type": "short", "question": "wifi password", "correct_pages": ["router-reset-wifi-password"]}
+{"id": "q20", "lang": "en", "type": "short", "question": "bill payment options", "correct_pages": ["postpaid-payment-methods"]}
+{"id": "q21", "lang": "en", "type": "detail", "question": "What documents does a customer need to register a new SIM?", "correct_pages": ["mobile-number-registration"]}
+{"id": "q22", "lang": "en", "type": "detail", "question": "How long does a home broadband installation take?", "correct_pages": ["home-broadband-installation"]}
+{"id": "q23", "lang": "en", "type": "detail", "question": "After how many days should an unresolved complaint be escalated?", "correct_pages": ["complaint-escalation-process"]}
+{"id": "q24", "lang": "en", "type": "detail", "question": "Does a SIM replacement keep my old phone number?", "correct_pages": ["sim-swap-replacement"]}
+{"id": "q25", "lang": "en", "type": "unanswerable", "question": "How do I open a business bank account?", "correct_pages": []}
+{"id": "q26", "lang": "en", "type": "unanswerable", "question": "What is the price of the newest iPhone?", "correct_pages": []}
+{"id": "q27", "lang": "en", "type": "unanswerable", "question": "Where can I pay my electricity bill?", "correct_pages": []}
+{"id": "q28", "lang": "en", "type": "unanswerable", "question": "How do I connect a SIM to my smartwatch?", "correct_pages": []}
+{"id": "q29", "lang": "en", "type": "unanswerable", "question": "Do you offer a prepaid fibre plan for apartments?", "correct_pages": []}
+{"id": "q30", "lang": "en", "type": "unanswerable", "question": "How do I change the name on a postpaid contract?", "correct_pages": []}

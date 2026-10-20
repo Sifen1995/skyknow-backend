@@ -1,0 +1,111 @@
+version: "3.8"
+
+services:
+  # 1. PostgreSQL Database with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: skyknow_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-skyknow}
+    ports:
+      - "5438:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-skyknow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL web administration
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: skyknow_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5059:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 2. Redis for Arq background task worker and caching
+  redis:
+    image: redis:7-alpine
+    container_name: skyknow_redis
+    ports:
+      - "6370:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+ 
+  
+  # LocalStack simulating AWS S3 locally on Docker Hub
+  # localstack:
+  #   image: localstack/localstack:latest
+  #   container_name: skyknow_s3
+  #   ports:
+  #     - "4566:4566"            # LocalStack Web/S3 gateway port
+  #   environment:
+  #     - SERVICES=s3           # Only enable S3 to keep memory footprint tiny (<100MB)
+  #     - AWS_DEFAULT_REGION=us-east-1
+  #   volumes:
+  #     - localstack_data:/var/lib/localstack
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+  # 4. FastAPI Backend API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: skyknow_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 5. Arq Background Worker Service (handles indexing, tasks, reminders)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: skyknow_worker
+    working_dir: /app
+    command: arq app.workers.worker.WorkerSettings
+    volumes:
+       - ./:/app
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  # localstack_data:

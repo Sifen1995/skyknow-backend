@@ -1,0 +1,89 @@
+[project]
+name = "skyknow-backend"
+version = "0.1.0"
+description = "AI-powered enterprise knowledge intelligence platform backend"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "sqlalchemy>=2.0.27",
+    "asyncpg>=0.29.0",
+    "numpy>=1.26.0",
+    "psycopg[binary]>=3.1.18",
+    "python-dotenv>=1.0.1",
+    "pgvector>=0.2.5",
+    "alembic>=1.13.1",
+    "arq>=0.25.0",
+    "redis>=5.0.1",
+    "openai>=1.14.0",
+    "boto3>=1.34.0",
+    "httpx>=0.27.0",
+    
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.5",
+    "pytest-cov>=4.1.0",
+    "testcontainers[postgres]>=3.7.1",
+    "ruff>=0.2.2",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+    "import-linter>=2.0.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+
+
+[tool.importlinter]
+root_package = "app"
+
+# Contract 1: Enforce strict inward dependency flow (Clean Architecture / DDD Layers)
+# Routers -> Services -> Repositories -> Domain
+[[tool.importlinter.contracts]]
+name = "DDD Layer Isolation Contract"
+type = "layers"
+layers = [
+    "app.routers",
+    "app.services",
+    "app.repo",
+    "app.domain",
+]
+exhaustiveness = true
+
+# Contract 2: The Domain layer must be completely pure and isolated
+[[tool.importlinter.contracts]]
+name = "Domain Purity Contract"
+type = "forbidden"
+source_modules = [
+    "app.domain",
+]
+forbidden_modules = [
+    "app.routers",
+    "app.services",
+    "app.repo",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]

@@ -1,0 +1,32 @@
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python bytecode and tooling caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Test and coverage output
+.coverage
+.coverage.*
+htmlcov/
+eval/results/
+
+# Build and packaging output
+build/
+dist/
+*.egg-info/
+
+# Local editor and operating system files
+.idea/
+.DS_Store
