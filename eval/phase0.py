@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """SkyKnow Phase 0: retrieval prototype (English only).
 
-  python phase0.py ingest             load pages/*.md into PostgreSQL + pgvector
-  python phase0.py eval               score questions.jsonl (vector search)
-  python phase0.py eval --hybrid      score with vector + keyword search merged
-  python phase0.py ask "your question"   try one question and see the top chunks
+python phase0.py ingest             load pages/*.md into PostgreSQL + pgvector
+python phase0.py eval               score questions.jsonl (vector search)
+python phase0.py eval --hybrid      score with vector + keyword search merged
+python phase0.py ask "your question"   try one question and see the top chunks
 """
+
 import argparse
 import hashlib
 import json
@@ -21,6 +22,8 @@ import psycopg
 from dotenv import load_dotenv
 from pgvector.psycopg import register_vector
 
+from app.config import settings
+
 load_dotenv()
 
 ROOT = Path(__file__).parent
@@ -28,17 +31,75 @@ PAGES_DIR = ROOT / "pages"
 QUESTIONS_FILE = ROOT / "questions.jsonl"
 RESULTS_DIR = ROOT / "results"
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://skyknow:skyknow@localhost:5433/skyknow")
+DB_URL = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://", 1)
 MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 DIMS = int(os.getenv("EMBEDDING_DIMS", "1536"))
 USE_FAKE = os.getenv("EMBEDDER", "openai").lower() == "fake"
 MAX_WORDS = 250  # a section longer than this is split at paragraph breaks
 
-STOPWORDS = set(
-    "the a an and or of to in on for with is are was were be do does did how what when where which who "
-    "can could should would my your our their me you we they it this that these those i not no from by at "
-    "as if so than then there here about have has had get got".split()
-)
+STOPWORDS = {
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "of",
+    "to",
+    "in",
+    "on",
+    "for",
+    "with",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "do",
+    "does",
+    "did",
+    "how",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "can",
+    "could",
+    "should",
+    "would",
+    "my",
+    "your",
+    "our",
+    "their",
+    "me",
+    "you",
+    "we",
+    "they",
+    "it",
+    "this",
+    "that",
+    "these",
+    "those",
+    "i",
+    "not",
+    "no",
+    "from",
+    "by",
+    "at",
+    "as",
+    "if",
+    "so",
+    "than",
+    "then",
+    "there",
+    "here",
+    "about",
+    "have",
+    "has",
+    "had",
+    "get",
+    "got",
+}
 
 
 # --------------------------------------------------------------------------- chunking
@@ -126,7 +187,12 @@ def embed(texts):
         return [fake_embed(t) for t in texts]
     from openai import OpenAI
 
-    client = OpenAI()  # reads OPENAI_API_KEY
+    if (
+        settings.OPENAI_API_KEY is None
+        or not settings.OPENAI_API_KEY.get_secret_value()
+    ):
+        raise RuntimeError("OPENAI_API_KEY is not set")
+    client = OpenAI(api_key=settings.OPENAI_API_KEY.get_secret_value())
     out = []
     for i in range(0, len(texts), 96):
         batch = texts[i : i + 96]
@@ -157,7 +223,9 @@ def connect():
 def cmd_ingest():
     chunks = make_chunks()
     print(f"{len(chunks)} chunks from {len({c['page_slug'] for c in chunks})} pages")
-    print(f"Embedding with {'FAKE (plumbing test)' if USE_FAKE else MODEL} ({DIMS} dims)...")
+    print(
+        f"Embedding with {'FAKE (plumbing test)' if USE_FAKE else MODEL} ({DIMS} dims)..."
+    )
     vectors = embed([c["embed_text"] for c in chunks])
 
     conn = connect()
@@ -181,7 +249,10 @@ def cmd_ingest():
         cur.executemany(
             "INSERT INTO chunks (page_slug, title, section, position, text, embedding) "
             "VALUES (%s, %s, %s, %s, %s, %s)",
-            [(c["page_slug"], c["title"], c["section"], c["position"], c["text"], v) for c, v in zip(chunks, vectors)],
+            [
+                (c["page_slug"], c["title"], c["section"], c["position"], c["text"], v)
+                for c, v in zip(chunks, vectors)
+            ],
         )
     conn.execute("CREATE INDEX ON chunks USING hnsw (embedding vector_cosine_ops)")
     conn.execute("CREATE INDEX ON chunks USING gin (tsv)")
@@ -191,7 +262,11 @@ def cmd_ingest():
 # --------------------------------------------------------------------------- search
 def to_tsquery(question):
     """Turn a question into an OR query of its useful words, e.g. 'sim | lost'."""
-    words = [w for w in re.findall(r"[a-z0-9]+", question.lower()) if len(w) > 2 and w not in STOPWORDS]
+    words = [
+        w
+        for w in re.findall(r"[a-z0-9]+", question.lower())
+        if len(w) > 2 and w not in STOPWORDS
+    ]
     return " | ".join(dict.fromkeys(words))
 
 
@@ -229,7 +304,16 @@ def search(conn, question, qvec, k=5, hybrid=False):
         rows = conn.execute(HYBRID_SQL, {"q": qvec, "t": tsq, "k": k}).fetchall()
     else:
         rows = conn.execute(VECTOR_SQL, {"q": qvec, "k": k}).fetchall()
-    return [dict(slug=r[0], title=r[1], section=r[2], text=r[3], sim=float(r[4])) for r in rows]
+    return [
+        {
+            "slug": r[0],
+            "title": r[1],
+            "section": r[2],
+            "text": r[3],
+            "sim": float(r[4]),
+        }
+        for r in rows
+    ]
 
 
 def rank_pages(chunks):
@@ -258,7 +342,11 @@ def best_threshold(answerable_sims, unanswerable_sims):
 
 
 def cmd_eval(hybrid, k):
-    questions = [json.loads(line) for line in QUESTIONS_FILE.read_text(encoding="utf-8").splitlines() if line.strip()]
+    questions = [
+        json.loads(line)
+        for line in QUESTIONS_FILE.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     conn = connect()
     qvecs = embed([q["question"] for q in questions])
 
@@ -280,7 +368,9 @@ def cmd_eval(hybrid, k):
         if correct:
             r["hit1"] = bool(pages) and pages[0] in correct
             r["hit3"] = any(p in correct for p in pages[:3])
-            r["rr"] = next((1 / (i + 1) for i, p in enumerate(pages[:5]) if p in correct), 0.0)
+            r["rr"] = next(
+                (1 / (i + 1) for i, p in enumerate(pages[:5]) if p in correct), 0.0
+            )
         results.append(r)
 
     answerable = [r for r in results if r["answerable"]]
@@ -318,7 +408,9 @@ def cmd_eval(hybrid, k):
         _, t, found, rejected = bt
         print(f"  Suggested 'not found' cut-off: {t:.2f}")
         print(f"    would still answer {found:.0%} of answerable questions")
-        print(f"    would correctly say 'not found' for {rejected:.0%} of unanswerable ones")
+        print(
+            f"    would correctly say 'not found' for {rejected:.0%} of unanswerable ones"
+        )
 
     failures = [r for r in answerable if not r["hit3"]]
     weak = [r for r in answerable if r["hit3"] and not r["hit1"]]
@@ -326,16 +418,23 @@ def cmd_eval(hybrid, k):
         print("\nMISSED (right page not in top 3):")
         for r in failures:
             print(f"  {r['id']} [{r['type']}] {r['question']}")
-            print(f"      expected: {r['correct_pages']}   got: {r['got_pages'][:3]}   top sim {r['top_sim']}")
+            print(
+                f"      expected: {r['correct_pages']}   got: {r['got_pages'][:3]}   top sim {r['top_sim']}"
+            )
     if weak:
         print("\nFOUND BUT NOT FIRST:")
         for r in weak:
-            print(f"  {r['id']} [{r['type']}] {r['question']}   expected {r['correct_pages']}   got {r['got_pages'][:3]}")
+            print(
+                f"  {r['id']} [{r['type']}] {r['question']}   expected {r['correct_pages']}   got {r['got_pages'][:3]}"
+            )
 
     RESULTS_DIR.mkdir(exist_ok=True)
     stamp = f"{'fake' if USE_FAKE else MODEL}_{'hybrid' if hybrid else 'vector'}"
     out = RESULTS_DIR / f"results_{stamp}.json"
-    out.write_text(json.dumps({"model": label, "mode": mode, "results": results}, indent=2), encoding="utf-8")
+    out.write_text(
+        json.dumps({"model": label, "mode": mode, "results": results}, indent=2),
+        encoding="utf-8",
+    )
     print(f"\nFull results saved to {out}")
 
 
@@ -349,7 +448,9 @@ def cmd_ask(question, hybrid, k):
 
 # --------------------------------------------------------------------------- main
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("ingest")
     p_eval = sub.add_parser("eval")
