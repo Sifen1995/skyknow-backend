@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -9,6 +7,8 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     API_V1_STR: str = "/api/v1"
+    SECRET_KEY: SecretStr
+    ALGORITHM: str = "HS256"
 
     # Database
     DATABASE_URL: str
@@ -22,10 +22,8 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: SecretStr | None = None
     OPENAI_API_KEY: SecretStr | None = None
 
-    SESSION_TTL_SECONDS: int = 60 * 60  # 1 hour
-    SESSION_COOKIE_NAME: str = "skyknow_session"
-    SESSION_COOKIE_SECURE: bool = True
-    SESSION_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "none"
+    ACCESS_TOKEN_TTL_SECONDS: int = 15 * 60
+    REFRESH_TOKEN_TTL_SECONDS: int = 30 * 24 * 60 * 60
 
     # Use exact origins, including scheme and port. Set this in your environment.
     CORS_ALLOWED_ORIGINS: list[str] = []
