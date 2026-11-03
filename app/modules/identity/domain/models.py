@@ -95,7 +95,9 @@ class IdentityRefreshToken(Base):
     )
     token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     family_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

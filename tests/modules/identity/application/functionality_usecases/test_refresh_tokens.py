@@ -96,9 +96,10 @@ async def test_refresh_rotates_token_and_preserves_family(
     assert result.refresh_token == "new-refresh-token"
     assert result.expires_in == 900
     assert repository.revoked == [old_hash]
-    assert repository.created[0]["token_hash"] == hashlib.sha256(
-        b"new-refresh-token"
-    ).hexdigest()
+    assert (
+        repository.created[0]["token_hash"]
+        == hashlib.sha256(b"new-refresh-token").hexdigest()
+    )
     assert repository.created[0]["family_id"] == family_id
 
 

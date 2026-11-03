@@ -96,9 +96,14 @@ async def test_login_issues_token_pair_and_updates_last_login(
         identity_repository.last_login_at
     )
     assert refresh_token_repository.created_token is not None
-    assert refresh_token_repository.created_token["token_hash"] != "opaque-refresh-token"
+    assert (
+        refresh_token_repository.created_token["token_hash"] != "opaque-refresh-token"
+    )
     assert refresh_token_repository.created_token["user_id"] == user.id
-    assert refresh_token_repository.created_token["expires_at"] > identity_repository.last_login_at
+    assert (
+        refresh_token_repository.created_token["expires_at"]
+        > identity_repository.last_login_at
+    )
 
 
 @pytest.mark.asyncio

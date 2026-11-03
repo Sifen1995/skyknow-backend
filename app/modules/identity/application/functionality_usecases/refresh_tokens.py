@@ -38,11 +38,7 @@ class RefreshTokens:
         token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
         record = await self._refresh_token_repository.get_for_update(token_hash)
         now = datetime.now(UTC)
-        if (
-            record is None
-            or record.revoked_at is not None
-            or record.expires_at <= now
-        ):
+        if record is None or record.revoked_at is not None or record.expires_at <= now:
             raise AuthenticationFailedError("Refresh token is invalid or expired")
 
         user = await self._identity_repository.get_user_by_id(str(record.user_id))
