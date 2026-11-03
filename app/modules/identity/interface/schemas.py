@@ -26,12 +26,26 @@ class UserProfileResponse(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    csrf_token: str
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
     user: UserProfileResponse
 
 
-class CsrfResponse(BaseModel):
-    csrf_token: str
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
 
 
 class RegisterResponse(UserProfileResponse):

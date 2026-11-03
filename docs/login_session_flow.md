@@ -1,134 +1,33 @@
-# Login and opaque-session flow
+# JWT access and refresh-token flow
 
-This document describes the current login flow implemented by the identity
-module. Login authenticates credentials, creates an opaque server-side session
-in Redis, and returns the session identifier only as an HTTP-only cookie.
+The identity module issues short-lived JWT access tokens and opaque refresh tokens. Access tokens are validated from the `Authorization: Bearer` header; refresh tokens are stored only as SHA-256 digests in PostgreSQL.
 
 ## Components
 
-- [`app/routers/identity.py`](../app/routers/identity.py) handles the HTTP
-  endpoint, checks the request origin, sets the cookie, and shapes the response.
-- [`app/modules/identity/application/functionality_usecases/login.py`](../app/modules/identity/application/functionality_usecases/login.py)
-  validates credentials, checks the user, and creates the session.
-- [`app/modules/identity/application/validation/auth.py`](../app/modules/identity/application/validation/auth.py)
-  validates and normalizes login input.
-- [`app/modules/identity/domain/identity_repository.py`](../app/modules/identity/domain/identity_repository.py)
-  and [`app/modules/identity/domain/redis_repository.py`](../app/modules/identity/domain/redis_repository.py)
-  define the persistence interfaces.
-- [`app/modules/identity/infrastructure/sqlalchemy_identity_repository.py`](../app/modules/identity/infrastructure/sqlalchemy_identity_repository.py)
-  implements user lookups and last-login updates.
-- [`app/modules/identity/infrastructure/redis_repository.py`](../app/modules/identity/infrastructure/redis_repository.py)
-  stores and retrieves sessions in Redis.
-- [`app/modules/identity/wiring.py`](../app/modules/identity/wiring.py)
-  provides the SQLAlchemy and Redis adapters to the login use case.
-- [`app/config.py`](../app/config.py) contains session-cookie, lifetime, and
-  allowed-origin settings.
+- `app/routers/identity.py` exposes login, refresh, logout, and registration endpoints.
+- `app/modules/identity/application/functionality_usecases/login.py` validates credentials and issues the initial token pair.
+- `app/modules/identity/application/functionality_usecases/refresh_tokens.py` rotates refresh tokens.
+- `app/modules/identity/application/functionality_usecases/authenticate_access_token.py` validates access JWTs and checks that the account is active.
+- `app/modules/identity/domain/refresh_token_repository.py` defines refresh-token persistence operations.
+- `app/modules/identity/infrastructure/sqlalchemy_refresh_token_repository.py` persists token digests and revocation state.
+- `migrations/versions/0004_identity_refresh_tokens.py` creates the refresh-token table.
 
-## Login request
+## Login
 
-The endpoint is `POST /api/v1/auth/login`. It accepts a JSON body:
+`POST /api/v1/auth/login` accepts an email and password. On successful verification, the response contains `access_token`, `refresh_token`, `token_type`, `expires_in`, and the user profile. The access token expires after `ACCESS_TOKEN_TTL_SECONDS` (15 minutes by default). The refresh token expires after `REFRESH_TOKEN_TTL_SECONDS` (30 days by default).
 
-```json
-{
-  "email": "person@example.com",
-  "password": "user-provided password"
-}
-```
+The refresh token is cryptographically random. Only its SHA-256 digest is stored with its user, token-family ID, expiry, and revocation timestamp. Access JWTs are not stored in the database.
 
-The request must include an `Origin` header whose exact value is present in
-`CORS_ALLOWED_ORIGINS`. The endpoint's `require_trusted_origin` dependency
-rejects an absent or unlisted origin with `403 Forbidden`. CORS configuration
-also restricts browser access to the configured origins and allows credentials.
+## Request authentication
 
-## Processing sequence
+Protected routes require `Authorization: Bearer <access_token>`. The JWT signature, expiration, and access-token purpose are validated, then the user is checked for an active status. Cookie authentication, session lookup, and CSRF validation are not used.
 
-1. **Parse and validate input.** FastAPI parses the JSON as `LoginRequest`.
-   `validate_login_request` trims the email, checks its format, and enforces a
-   password length of 1–72 UTF-8 bytes. Invalid input is rejected before
-   credential verification.
-2. **Look up the account.** The `Login` use case asks the identity repository
-   for a user with that email.
-3. **Authenticate the user.** Login fails with an authentication error if the
-   account does not exist, is inactive, has no password hash, or the supplied
-   password does not match the stored bcrypt hash. The same public error is
-   used for these credential failures.
-4. **Update last-login time.** On successful credential verification, the
-   repository records the current UTC time as the user's last login.
-5. **Create session credentials.** The use case generates independent,
-   cryptographically secure opaque session and CSRF tokens with
-   `secrets.token_urlsafe(32)`.
-6. **Persist the session.** The Redis adapter hashes the session token with
-   SHA-256 and uses that digest as the Redis key
-   (`identity:session:<digest>`). The Redis hash stores the user ID and CSRF
-   token, and expires after `SESSION_TTL_SECONDS`.
-7. **Set the cookie and response.** The router sets the raw session token in
-   the configured cookie. It is `HttpOnly`, has the configured `Secure` and
-   `SameSite` attributes, uses path `/`, and has a `max_age` matching the
-   session TTL. The JSON response contains the CSRF token and user profile;
-   it does not contain the session token.
+## Refresh rotation and logout
 
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant Router as Identity router
-    participant Login as Login use case
-    participant DB as Identity repository
-    participant Redis as Redis session repository
+`POST /api/v1/auth/refresh` accepts `{ "refresh_token": "..." }`. The matching database row is locked during rotation. A valid token is revoked and replaced with a fresh random token in the same family; the response returns a new access/refresh pair. Reusing an already-revoked or expired token is rejected.
 
-    Browser->>Router: POST /api/v1/auth/login (Origin, credentials)
-    Router->>Router: Check trusted Origin
-    Router->>Login: execute(LoginRequest)
-    Login->>Login: Validate login input
-    Login->>DB: Find user by email
-    DB-->>Login: User record
-    Login->>Login: Check active status and bcrypt password
-    Login->>DB: Update last-login time
-    Login->>Redis: Create session with TTL
-    Redis-->>Login: Session stored
-    Login-->>Router: User, session token, CSRF token
-    Router-->>Browser: Set-Cookie(session token), JSON(CSRF token, user)
-```
+`POST /api/v1/auth/logout` accepts the current refresh token and revokes every token in its family. Access JWTs already issued remain valid until their short expiry; logout does not maintain a server-side access-token denylist.
 
-If authentication fails, the session is not created and no session cookie is
-set. A database or Redis error is an infrastructure failure, not a successful
-login response. The last-login update occurs before Redis session creation, so a
-Redis failure may leave the last-login timestamp updated even though login
-doesn't complete.
+## Configuration
 
-## Browser behavior after login
-
-For a frontend hosted on a different site:
-
-1. Send login with `credentials: "include"` so the browser accepts the
-   `Set-Cookie` response.
-2. Keep the returned CSRF token in frontend memory. Do not try to read the
-   session cookie from JavaScript; it is HTTP-only.
-3. Send `credentials: "include"` on subsequent API requests so the browser
-   includes the cookie.
-4. For state-changing requests (`POST`, `PUT`, `PATCH`, and `DELETE`), send the
-   CSRF token in the `X-CSRF-Token` header. The API also checks the request's
-   `Origin`.
-5. After a reload, request `GET /api/v1/auth/csrf` with credentials to retrieve
-   the CSRF token associated with the existing session.
-6. To log out, call `POST /api/v1/auth/logout` with credentials and the CSRF
-   header. Logout revokes the Redis session and clears the cookie.
-
-Cross-site cookies require HTTPS when `SameSite=None`; configure
-`SESSION_COOKIE_SECURE=true` in deployed environments. `CORS_ALLOWED_ORIGINS`
-must contain the frontend's exact origin, including scheme and port where
-applicable. Do not use wildcard origins with credentialed CORS.
-
-## How later requests are authenticated
-
-The `require_authenticated_user` dependency reads the session cookie and passes
-its token to the `AuthenticateSession` use case. That use case retrieves the
-session from Redis and looks up the user in the identity repository. Missing or
-expired sessions, missing users, and inactive users are rejected; an invalid
-user's session is revoked. For state-changing methods, the dependency checks the
-trusted origin and compares `X-CSRF-Token` with the stored token using a
-constant-time comparison. On success, the user ID and CSRF token are attached
-to `request.state`.
-
-The Redis connection is initialized and closed by the application lifespan in
-[`app/main.py`](../app/main.py). It is shared by the Redis adapter through the
-dependency in [`app/core/redis.py`](../app/core/redis.py).
+Set `SECRET_KEY` to a high-entropy secret and keep `ALGORITHM` restricted to the configured algorithm (HS256 by default). `ACCESS_TOKEN_TTL_SECONDS` and `REFRESH_TOKEN_TTL_SECONDS` control token lifetimes. Apply the Alembic migration before deploying the new endpoints.

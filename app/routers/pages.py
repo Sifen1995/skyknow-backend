@@ -2,8 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.composition.knowledge.wiring import get_all_pages_use_case
-from app.modules.knowledge.application.page_service import GetAllPages
+from app.composition.knowledge.wiring import GetAllPages, get_all_pages_use_case
 from app.modules.knowledge.interface.schemas import PageResponse
 
 router = APIRouter(prefix="/pages", tags=["Pages"])

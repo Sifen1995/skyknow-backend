@@ -12,8 +12,13 @@ class SqlAlchemyIdentityRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def get_user_by_id(self, user_id: str) -> User | None:
-        statement = select(User).where(User.id == user_id)
+    async def get_user_by_id(self, user_id: str | UUID) -> User | None:
+        try:
+            parsed_user_id = UUID(str(user_id))
+        except (TypeError, ValueError):
+            return None
+
+        statement = select(User).where(User.id == parsed_user_id)
         result = await self._session.execute(statement)
         return result.scalar_one_or_none()
 
