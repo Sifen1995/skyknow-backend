@@ -2,15 +2,15 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main, master,dev ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main, master,dev ]
+    branches: [ main, master]
 
 jobs:
   quality-and-tests:
     runs-on: ubuntu-latest
 
-    steps:
+    steps:  
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -23,16 +23,16 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Install Dependencies
-        run: uv pip install --system -e .[dev]
+        run: uv sync --locked --all-groups
 
       - name: Run Ruff (Linter & Formatter Check)
-        run: ruff check . && ruff format --check .
+        run: uv run --locked ruff check . && uv run --locked ruff format --check .
 
       - name: Run Mypy (Type Checker)
-        run: mypy app
+        run: uv run --locked mypy app
 
     #   - name: Run Pytest (Test Suite)
     #     run: pytest -v
 
       - name: Run Architecture Linter (DDD Boundaries)
-        run: lint-imports
+        run: uv run --locked lint-imports

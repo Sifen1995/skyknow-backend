@@ -1,4 +1,3 @@
-version: "3.8"
 
 services:
   # 1. PostgreSQL Database with pgvector extension
@@ -69,6 +68,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: skyknow-backend:dev  
     container_name: skyknow_api
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
@@ -87,9 +87,7 @@ services:
 
   # 5. Arq Background Worker Service (handles indexing, tasks, reminders)
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: skyknow-backend:dev
     container_name: skyknow_worker
     working_dir: /app
     command: arq app.workers.worker.WorkerSettings

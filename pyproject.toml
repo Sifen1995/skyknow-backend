@@ -1,15 +1,43 @@
+# =============================================================================
+# SkyKnow backend: project metadata, tooling and ARCHITECTURE RULES
+#
+# The architecture rules are the [tool.importlinter] sections. They run with:
+#       uv run lint-imports        (or:  lint-imports)
+# and fail the build when someone imports in a forbidden direction.
+#
+# Vocabulary used in the comments below:
+#   DDD (domain-driven design)  : the business model (domain) is the centre.
+#   Hexagonal (ports & adapters): the centre talks to the outside only through
+#                                 interfaces ("ports"); the outside plugs in
+#                                 implementations ("adapters").
+#   driving adapter  = something that CALLS the app    (HTTP controllers = "interface")
+#   driven adapter   = something the app CALLS         (database, Redis, OpenAI = "infrastructure")
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Project metadata
+# -----------------------------------------------------------------------------
 [project]
+# Package name used when the project is built or installed.
 name = "skyknow-backend"
+# Current version of the backend.
 version = "0.1.0"
+# One-line description shown by packaging tools.
 description = "AI-powered enterprise knowledge intelligence platform backend"
+# File used as the long description.
 readme = "README.md"
+# The code uses Python 3.12 features (typing syntax, StrEnum), so older versions are refused.
 requires-python = ">=3.12"
+# Libraries installed in production.
 dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.28.0",
     "pydantic>=2.6.0",
     "pydantic-settings>=2.2.0",
+    "openai-agents",
     "sqlalchemy>=2.0.27",
+    "google-genai>=1.0.0",
+    "greenlet",
     "asyncpg>=0.29.0",
     "numpy>=1.26.0",
     "psycopg[binary]>=3.1.18",
@@ -21,9 +49,14 @@ dependencies = [
     "openai>=1.14.0",
     "boto3>=1.34.0",
     "httpx>=0.27.0",
-    
+    "bcrypt>=4.1",
+    "pyyaml>=6.0.3",
+    "python-frontmatter>=1.3.0",
 ]
 
+# -----------------------------------------------------------------------------
+# Development-only tools (not installed in production)
+# -----------------------------------------------------------------------------
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
@@ -33,57 +66,394 @@ dev = [
     "ruff>=0.2.2",
     "mypy>=1.8.0",
     "pre-commit>=3.6.0",
+    # The tool that enforces every architecture rule below.
     "import-linter>=2.0.0",
 ]
 
+# -----------------------------------------------------------------------------
+# Code style
+# -----------------------------------------------------------------------------
 [tool.ruff]
+# Lint and format for Python 3.12 syntax.
 target-version = "py312"
+# Maximum line length.
 line-length = 88
 
+# -----------------------------------------------------------------------------
+# Type checking. Ports are typing.Protocol, so mypy is what verifies that an
+# adapter really satisfies its port (Python itself never checks this).
+# -----------------------------------------------------------------------------
 [tool.mypy]
+# Check against Python 3.12.
 python_version = "3.12"
+# Understand Pydantic models.
+plugins = ["pydantic.mypy"]
+# Turn on every strict check: an adapter missing a port method becomes a build error.
 strict = true
+# Warn when a function declared to return a type returns Any.
 warn_return_any = true
+# Warn about "# type: ignore" comments that are no longer needed.
 warn_unused_ignores = true
+# Do not fail on third-party libraries without type information.
 ignore_missing_imports = true
 
 
+# =============================================================================
+# ARCHITECTURE RULES (import-linter)
+#
+# Folder layout these rules assume (one block per bounded context):
+#
+#   app/composition/             global composition root and providers
+#   app/modules/<context>/
+#       domain/          entities, value objects, enums, domain rules
+#       application/     use cases + PORTS (interfaces) + DTOs
+#       infrastructure/  ADAPTERS: SQLAlchemy repositories, API clients (driven)
+#       interface/       HTTP schemas and controllers (driving)
+#   app/routers  app/workers  app/ai_gateway   global entry points
+#   app/core                                   shared generic code
+#   app/config.py                              settings
+# =============================================================================
 [tool.importlinter]
+# RULE: "app" is the one package whose imports are analysed.
 root_package = "app"
+# RULE: also analyse imports of third-party libraries, so we can forbid e.g.
+#       "the domain may not import fastapi".
+include_external_packages = true
 
-# Contract 1: Enforce strict inward dependency flow (Clean Architecture / DDD Layers)
-# Routers -> Services -> Repositories -> Domain
+
+# ==============================================================================
+# CONTRACT 1: HEXAGONAL LAYERS. Dependencies only point INWARD.
+# ==============================================================================
 [[tool.importlinter.contracts]]
-name = "DDD Layer Isolation Contract"
+# RULE: the name printed in the report when this contract is broken.
+name = "Layers: dependencies only point inward (interface|infrastructure > application > domain)"
+# RULE: 'layers' means a layer may import layers BELOW it in the list, never ABOVE it.
 type = "layers"
+# RULE: apply the same feature-layer rules separately inside every bounded context.
+#       Composition lives outside bounded contexts in app.composition.
+containers = [
+    "app.modules.identity",
+    "app.modules.knowledge",
+    "app.modules.search",
+]
 layers = [
-    "app.routers",
-    "app.services",
-    "app.repo",
-    "app.domain",
+    # RULE: "|" puts two adapter layers on the SAME level and makes them independent.
+    #       interface (driving adapter) and infrastructure (driven adapter) must
+    #       never import each other. A controller never touches SQLAlchemy and a
+    #       repository never knows about HTTP schemas. Both talk through application.
+    "interface | infrastructure",
+    # RULE: use cases and ports. May import ONLY the domain. It must not import
+    #       infrastructure: it defines the port, the adapter implements it.
+    "application",
+    # RULE: innermost. The business model. Imports NO other layer of the system.
+    "domain",
 ]
-exhaustiveness = true
+# RULE: explicit, named exceptions to the layering above.
+ignore_imports = [
+    # --- TEMPORARY TECH DEBT. DELETE THESE LINES, do not add more. ---
+    # These use cases import the HTTP schemas, so the application layer points at
+    # the interface layer: a BACKWARDS dependency that breaks the hexagonal rule.
+    # Fix: define a frozen dataclass result inside application (for example
+    # LoginResult) and map it to the schema in the route. When the imports are
+    # gone, import-linter reports these lines as unmatched, which is your reminder
+    # to delete them.
+    "app.modules.identity.application.functionality_usecases.login -> app.modules.identity.interface.schemas",
+    "app.modules.identity.application.functionality_usecases.register -> app.modules.identity.interface.schemas",
+    "app.modules.identity.application.validation.auth -> app.modules.identity.interface.schemas",
+]
 
-# Contract 2: The Domain layer must be completely pure and isolated
+
+# ==============================================================================
+# CONTRACT 2: BOUNDED CONTEXTS ARE ISOLATED (DDD)
+# ==============================================================================
 [[tool.importlinter.contracts]]
-name = "Domain Purity Contract"
-type = "forbidden"
-source_modules = [
-    "app.domain",
+# RULE: the name printed in the report when this contract is broken.
+name = "Bounded contexts never import each other"
+# RULE: 'independence' means none of the listed modules may import any other, directly
+#       or through a chain of other modules.
+type = "independence"
+# RULE: each module is its own bounded context with its own model and vocabulary.
+#       They cooperate only through the global entry points (app.workers,
+#       app.routers) and the wiring that passes ports between them, never by
+#       importing each other's code.
+modules = [
+    "app.modules.identity",
+    "app.modules.knowledge",
+    "app.modules.search",
 ]
+
+
+# ==============================================================================
+# CONTRACT 3: THE DOMAIN IS PURE (DDD)
+# ==============================================================================
+[[tool.importlinter.contracts]]
+# RULE: the name printed in the report when this contract is broken.
+name = "Domain is free of frameworks, drivers and entry points"
+# RULE: 'forbidden' means the source modules may not import the forbidden modules.
+type = "forbidden"
+# RULE: the check applies to the domain package of EVERY module (the * is a wildcard).
+source_modules = [
+    "app.modules.*.domain",
+]
+# RULE: business rules must run and be testable with no web server, no queue and no cloud.
+forbidden_modules = [
+    # Web frameworks (the delivery mechanism is not the domain's business).
+    "fastapi",
+    "starlette",
+    # Database drivers and migration tooling.
+    "asyncpg",
+    "psycopg",
+    "alembic",
+    "pgvector",
+    # Queues, caches and cloud storage.
+    "redis",
+    "arq",
+    "boto3",
+    # HTTP clients and AI providers.
+    "httpx",
+    "openai",
+    "agents",
+    "google",
+    # Application settings and global entry points are outer concerns.
+    "app.config",
+    "app.routers",
+    "app.workers",
+    "app.ai_gateway",
+]
+# RULE: only DIRECT imports are checked. Without this, importing a helper that itself
+#       imports a framework would also fail, which is too noisy to be useful.
+allow_indirect_imports = true
+
+# NOTE on SQLAlchemy: it is NOT forbidden in the domain above, because your domain
+# models are currently SQLAlchemy ORM classes (the repositories do select(Page)).
+# If you later separate pure domain entities from ORM rows, enable this contract:
+#
+# [[tool.importlinter.contracts]]
+# name = "Domain does not import SQLAlchemy"
+# type = "forbidden"
+# source_modules = ["app.modules.*.domain"]
+# forbidden_modules = ["sqlalchemy"]
+# allow_indirect_imports = true
+
+
+# ==============================================================================
+# CONTRACT 4: THE APPLICATION LAYER TALKS ONLY THROUGH PORTS (HEXAGONAL)
+# ==============================================================================
+[[tool.importlinter.contracts]]
+# RULE: the name printed in the report when this contract is broken.
+name = "Application layer has no technology: it only knows ports"
+# RULE: 'forbidden' means the source modules may not import the forbidden modules.
+type = "forbidden"
+# RULE: the check applies to the application package of EVERY module.
+source_modules = [
+    "app.modules.*.application",
+]
+# RULE: a use case calls a port (Protocol); the adapter that uses the technology
+#       lives in infrastructure. So no technology library appears here.
+forbidden_modules = [
+    # The database. Use cases never write SQL or build queries.
+    "sqlalchemy",
+    "asyncpg",
+    "psycopg",
+    "alembic",
+    "pgvector",
+    # The web framework. Use cases do not know about requests or HTTP status codes.
+    "fastapi",
+    "starlette",
+    # Queues, caches and cloud storage.
+    "redis",
+    "arq",
+    "boto3",
+    # HTTP clients and AI providers: reach them through a port.
+    "httpx",
+    "openai",
+    "agents",
+    "google",
+    # Application settings and global entry points are outer concerns.
+    "app.config",
+    "app.routers",
+    "app.workers",
+    "app.ai_gateway",
+]
+# RULE: only DIRECT imports are checked (see contract 3).
+allow_indirect_imports = true
+
+
+# ==============================================================================
+# CONTRACT 5: MODULES DO NOT DEPEND ON THE ENTRY POINTS
+# ==============================================================================
+[[tool.importlinter.contracts]]
+# RULE: the name printed in the report when this contract is broken.
+name = "Modules never import the global entry points"
+# RULE: 'forbidden' means the source modules may not import the forbidden modules.
+type = "forbidden"
+# RULE: no code inside any bounded context...
+source_modules = [
+    "app.modules",
+]
+# RULE: ...may import the HTTP routers, background workers or AI gateway. Those call
+#       the modules, never the other way around (dependencies point inward).
 forbidden_modules = [
     "app.routers",
-    "app.services",
-    "app.repo",
+    "app.workers",
+    "app.ai_gateway",
+]
+# RULE: check direct AND indirect imports, so a chain through a helper cannot hide it.
+allow_indirect_imports = false
+
+
+# ==============================================================================
+# CONTRACT 6: ENTRY POINTS GO THROUGH THE APPLICATION LAYER (HEXAGONAL)
+# ==============================================================================
+# Global delivery mechanisms (HTTP, workers, AI) must call use cases and must not
+# reach into a module's internals. The wildcard (*) makes this apply to ALL modules.
+[[tool.importlinter.contracts]]
+# RULE: the name printed in the report when this contract is broken.
+name = "Global entry points must not bypass the application layer"
+# RULE: 'forbidden' means the source modules may not import the forbidden modules.
+type = "forbidden"
+# RULE: indirect imports are allowed (a use case may use infrastructure inside);
+#       only a DIRECT import from the entry point is a violation.
+allow_indirect_imports = true
+# RULE: these are the delivery mechanisms that call into the modules.
+source_modules = [
+    "app.routers",
+    "app.workers",
+    "app.ai_gateway",
+]
+# RULE: they may import application (use cases and ports), never a module's entities,
+#       its adapters or its composition root directly.
+forbidden_modules = [
+    "app.modules.*.domain",
+    "app.modules.*.infrastructure",
+    "app.modules.*.wiring",
 ]
 
+
+# ==============================================================================
+# CONTRACT 7: THE SHARED CORE STAYS GENERIC
+# ==============================================================================
+# Core code is generic (utilities, base classes) and must not depend on features
+# or delivery mechanisms.
+[[tool.importlinter.contracts]]
+# RULE: the name printed in the report when this contract is broken.
+name = "Shared core stays module-independent"
+# RULE: 'forbidden' means the source modules may not import the forbidden modules.
+type = "forbidden"
+# RULE: the shared kernel...
+source_modules = [
+    "app.core",
+]
+# RULE: ...may not know about any feature module, entry point or settings.
+forbidden_modules = [
+    "app.modules",
+    "app.routers",
+    "app.workers",
+    "app.ai_gateway",
+    "app.config",
+]
+
+
+# -----------------------------------------------------------------------------
+# Tests
+# -----------------------------------------------------------------------------
 [tool.pytest.ini_options]
+# Run async test functions without decorating each one.
 asyncio_mode = "auto"
+# Tests live in this folder.
 testpaths = ["tests"]
 
+# -----------------------------------------------------------------------------
+# Build and packaging
+# -----------------------------------------------------------------------------
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+# Only these top-level packages are shipped.
+include = ["app*", "scripts*"]
+
+[tool.alembic]
+
+# path to migration scripts.
+# this is typically a path given in POSIX (e.g. forward slashes)
+# format, relative to the token %(here)s which refers to the location of this
+# ini file
+script_location = "%(here)s/migrations"
+
+# template used to generate migration file names; The default value is %%(rev)s_%%(slug)s
+# Uncomment the line below if you want the files to be prepended with date and time
+# see https://alembic.sqlalchemy.org/en/latest/tutorial.html#editing-the-ini-file
+# for all available tokens
+# file_template = "%%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s"
+# Or organize into date-based subdirectories (requires recursive_version_locations = true)
+# file_template = "%%(year)d/%%(month).2d/%%(day).2d_%%(hour).2d%%(minute).2d_%%(second).2d_%%(rev)s_%%(slug)s"
+
+# additional paths to be prepended to sys.path. defaults to the current working directory.
+prepend_sys_path = [
+    "."
+]
+
+# timezone to use when rendering the date within the migration file
+# as well as the filename.
+# If specified, requires the tzdata library which can be installed by adding
+# `alembic[tz]` to the pip requirements.
+# string value is passed to ZoneInfo()
+# leave blank for localtime
+# timezone =
+
+# max length of characters to apply to the "slug" field
+# truncate_slug_length = 40
+
+# set to 'true' to run the environment during
+# the 'revision' command, regardless of autogenerate
+# revision_environment = false
+
+# set to 'true' to allow .pyc and .pyo files without
+# a source .py file to be detected as revisions in the
+# versions/ directory
+# sourceless = false
+
+# version location specification; This defaults
+# to <script_location>/versions.  When using multiple version
+# directories, initial revisions must be specified with --version-path.
+# version_locations = [
+#    "%(here)s/alembic/versions",
+#    "%(here)s/foo/bar"
+# ]
+
+
+# set to 'true' to search source files recursively
+# in each "version_locations" directory
+# new in Alembic version 1.10
+# recursive_version_locations = false
+
+# the output encoding used when revision files
+# are written from script.py.mako
+# output_encoding = "utf-8"
+
+# This section defines scripts or Python functions that are run
+# on newly generated revision scripts.  See the documentation for further
+# detail and examples
+# [[tool.alembic.post_write_hooks]]
+# format using "black" - use the console_scripts runner,
+# against the "black" entrypoint
+# name = "black"
+# type = "console_scripts"
+# entrypoint = "black"
+# options = "-l 79 REVISION_SCRIPT_FILENAME"
+#
+# [[tool.alembic.post_write_hooks]]
+# lint with attempts to fix using "ruff" - use the module runner, against the "ruff" module
+# name = "ruff"
+# type = "module"
+# module = "ruff"
+# options = "check --fix REVISION_SCRIPT_FILENAME"
+#
+# [[tool.alembic.post_write_hooks]]
+# Alternatively, use the exec runner to execute a binary found on your PATH
+# name = "ruff"
+# type = "exec"
+# executable = "ruff"
+# options = "check --fix REVISION_SCRIPT_FILENAME"
