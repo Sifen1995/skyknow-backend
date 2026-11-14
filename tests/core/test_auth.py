@@ -1,17 +1,17 @@
 from uuid import uuid4
 
 import pytest
+from app.composition.identity.wiring import (
+    get_authenticate_access_token_use_case,
+)
+from app.modules.identity.application.functionality_usecases.authenticate_access_token import (
+    AuthenticatedUser,
+)
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.testclient import TestClient
 
-from app.composition.identity.wiring import (
-    get_authenticate_access_token_use_case,
-)
 from app.main import app
-from app.modules.identity.application.functionality_usecases.authenticate_access_token import (
-    AuthenticatedUser,
-)
 from app.routers.security import require_authenticated_user
 
 
@@ -65,6 +65,8 @@ def test_routes_are_grouped_as_public_and_secured() -> None:
         response = client.get("/api/v1/pages")
         assert response.status_code == 401
         assert response.json()["error"]["message"] == "Authentication required"
+        profile_response = client.get("/api/v1/auth/me")
+        assert profile_response.status_code == 401
     finally:
         app.dependency_overrides.pop(get_authenticate_access_token_use_case, None)
 
@@ -77,3 +79,13 @@ def test_openapi_documents_bearer_authentication() -> None:
         "scheme": "bearer",
     }
     assert {"HTTPBearer": []} in schema["paths"]["/api/v1/pages"]["get"]["security"]
+    assert {"HTTPBearer": []} in schema["paths"]["/api/v1/auth/me"]["get"]["security"]
+    query_parameters = {
+        parameter["name"]
+        for parameter in schema["paths"]["/api/v1/pages"]["get"]["parameters"]
+    }
+    assert {"lang", "tag", "template", "q", "limit", "cursor"} <= query_parameters
+    assert (
+        "content"
+        not in schema["components"]["schemas"]["PageListItemResponse"]["properties"]
+    )

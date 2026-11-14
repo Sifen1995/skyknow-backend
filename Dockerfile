@@ -6,12 +6,14 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock alembic.ini ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --group dev
 
+# Copy source code, migrations, and scripts
 COPY app/ ./app/
 COPY scripts/ ./scripts/
+COPY migrations/ ./migrations/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --group dev
 

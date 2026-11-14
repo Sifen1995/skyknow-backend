@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
     REDIS_URL: str
+    SUPER_SUPER_ADMIN_EMAIL: str | None = None
+    SUPER_SUPER_ADMIN_PASSWORD: SecretStr | None = None
     EMBEDDING_PROVIDER: str = "openai"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"

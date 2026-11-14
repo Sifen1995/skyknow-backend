@@ -63,6 +63,21 @@ services:
   #     interval: 10s
   #     timeout: 5s
   #     retries: 3
+
+
+  
+  db-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: skyknow-backend:dev
+    container_name: skyknow_migration
+    command: sh -c "alembic upgrade head && python -m scripts.seed.super_super_admin"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
   # 4. FastAPI Backend API Service
   api:
     build:
@@ -84,6 +99,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully  
 
   # 5. Arq Background Worker Service (handles indexing, tasks, reminders)
   worker:
