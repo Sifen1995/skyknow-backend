@@ -119,6 +119,17 @@ class PageAudience(Base):
     page: Mapped["Page"] = relationship("Page", back_populates="audiences")
 
 
+class PageTag(Base):
+    __tablename__ = "page_tags"
+
+    page_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("pages.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
+    )
+
+
 class PageLanguage(Base):
     """One language translation track for a page."""
 

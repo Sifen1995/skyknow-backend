@@ -3,11 +3,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import frontmatter  # parses markdown frontmatter (metadata + content)
+from app.modules.identity.domain.enums import RoleName, UserStatus
+from app.modules.identity.domain.models import OrgUnit, RoleAssignment, User
 from sqlalchemy import select, text
 
 from app.core.db import AsyncSessionLocal
-from app.modules.identity.domain.enums import RoleName, UserStatus
-from app.modules.identity.domain.models import OrgUnit, RoleAssignment, User
 from app.modules.knowledge.domain.enums import (
     PageVisibility,
     TemplateType,

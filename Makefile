@@ -1,4 +1,4 @@
-.PHONY: help dev up down build logs migrate seed test lint clean
+.PHONY: help dev up down build logs migrate seed seed-super-super-admin test lint clean
 
 # Default target when you just run 'make'
 help:
@@ -11,13 +11,14 @@ help:
 	@echo "  make migrate      - Run database migrations via Alembic"
 	@echo "  make migration    - Create a new Alembic migration (usage: make migration msg='description')"
 	@echo "  make seed         - Seed users (SEED_USER_PASSWORD must be 8+ characters)"
+	@echo "  make seed-super-super-admin - Seed the configured platform super-super admin"
 	@echo "  make test         - Run pytest integration and unit tests"
 	@echo "  make lint         - Run Ruff, Mypy, and import-linter locally"
 	@echo "  make clean        - Remove python cache, build files, and temporary artifacts"
 
 # --- Docker Environment Management ---
 dev:
-	docker compose up -d
+	docker compose up -d --build
 	@echo "Services started. FastAPI is running on http://localhost:8000"
 
 down:
@@ -39,6 +40,9 @@ migration:
 
 seed:
 	docker compose exec -e SEED_USER_PASSWORD api python -m scripts.seed.seed
+
+seed-super-super-admin:
+	docker compose exec api python -m scripts.seed.super_super_admin
 
 # --- Testing & Code Quality ---
 test:
@@ -63,7 +67,6 @@ clean:
 	@echo "Cleaned temporary Python cache files."
 
 
-# fix:
-    
-#     uv run --locked --no-sync ruff format
-# 	uv run --locked --no-sync ruff check --fix
+# format:
+# 	uv run --locked --no-sync ruff check --fix .
+# 	uv run --locked --no-sync ruff format .
