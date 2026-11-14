@@ -1,19 +1,24 @@
-import secrets
+from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, Request, status
+import jwt
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.composition.identity.wiring import get_authenticate_session_use_case
 from app.config import settings
-from app.modules.identity.application.functionality_usecases.authenticate_session import (
-    AuthenticatedSession,
-    AuthenticateSession,
-)
+from app.core.security import decode_access_token, verify_trusted_origin
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+@dataclass(frozen=True)
+class AuthenticatedUser:
+    user_id: str
 
 
 async def require_trusted_origin(request: Request) -> None:
     origin = request.headers.get("origin")
-    if origin not in settings.CORS_ALLOWED_ORIGINS:
+    if not verify_trusted_origin(origin, settings.CORS_ALLOWED_ORIGINS):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Untrusted request origin",
@@ -21,42 +26,37 @@ async def require_trusted_origin(request: Request) -> None:
 
 
 async def require_authenticated_user(
-    request: Request,
-    use_case: Annotated[
-        AuthenticateSession,
-        Depends(get_authenticate_session_use_case),
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
     ],
-    csrf_token: Annotated[
-        str | None,
-        Header(
-            alias="X-CSRF-Token",
-            description="Required for state-changing requests.",
-        ),
-    ] = None,
-) -> AuthenticatedSession:
-    session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
-    if session_token is None:
+) -> AuthenticatedUser:
+    if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
-    authenticated_session = await use_case.execute(session_token)
-    if authenticated_session is None:
+    try:
+        payload = decode_access_token(
+            credentials.credentials,
+            secret_key=settings.SECRET_KEY.get_secret_value(),
+            algorithm=settings.ALGORITHM,
+        )
+    except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session is invalid or expired",
+            detail="Access token is invalid or expired",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
-        await require_trusted_origin(request)
-        if csrf_token is None or not secrets.compare_digest(
-            csrf_token,
-            authenticated_session.csrf_token,
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="CSRF validation failed",
-            )
+    user_id = payload.get("sub")
+    if payload.get("token_use") != "access" or not isinstance(user_id, str):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token is invalid or expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    return authenticated_session
+    return AuthenticatedUser(user_id=user_id)

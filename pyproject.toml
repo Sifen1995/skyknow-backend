@@ -50,6 +50,8 @@ dependencies = [
     "boto3>=1.34.0",
     "httpx>=0.27.0",
     "bcrypt>=4.1",
+    "argon2-cffi>=23.1.0",
+    "PyJWT>=2.8.0",
     "pyyaml>=6.0.3",
     "python-frontmatter>=1.3.0",
 ]
@@ -132,7 +134,7 @@ type = "layers"
 # RULE: apply the same feature-layer rules separately inside every bounded context.
 #       Composition lives outside bounded contexts in app.composition.
 containers = [
-    "app.modules.identity",
+    "app.modules.platform_admin",
     "app.modules.knowledge",
     "app.modules.search",
 ]
@@ -149,18 +151,7 @@ layers = [
     "domain",
 ]
 # RULE: explicit, named exceptions to the layering above.
-ignore_imports = [
-    # --- TEMPORARY TECH DEBT. DELETE THESE LINES, do not add more. ---
-    # These use cases import the HTTP schemas, so the application layer points at
-    # the interface layer: a BACKWARDS dependency that breaks the hexagonal rule.
-    # Fix: define a frozen dataclass result inside application (for example
-    # LoginResult) and map it to the schema in the route. When the imports are
-    # gone, import-linter reports these lines as unmatched, which is your reminder
-    # to delete them.
-    "app.modules.identity.application.functionality_usecases.login -> app.modules.identity.interface.schemas",
-    "app.modules.identity.application.functionality_usecases.register -> app.modules.identity.interface.schemas",
-    "app.modules.identity.application.validation.auth -> app.modules.identity.interface.schemas",
-]
+ignore_imports = []
 
 
 # ==============================================================================
@@ -177,7 +168,7 @@ type = "independence"
 #       app.routers) and the wiring that passes ports between them, never by
 #       importing each other's code.
 modules = [
-    "app.modules.identity",
+    "app.modules.platform_admin",
     "app.modules.knowledge",
     "app.modules.search",
 ]

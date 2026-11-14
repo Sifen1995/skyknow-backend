@@ -11,6 +11,7 @@ database records. The implementations are
 | Script | Creates or updates | Input |
 |---|---|---|
 | `scripts.seed.seed` | Languages, organization units, users, organization heads, and role assignments | `SEED_USER_PASSWORD` plus constants in `seed.py` |
+| `scripts.seed.super_super_admin` | The configured platform super-super admin | `SUPER_SUPER_ADMIN_EMAIL` and `SUPER_SUPER_ADMIN_PASSWORD` from `.env` |
 | `scripts.helper.import_eval_pages` | Pages, audiences, language tracks, and initial versions | Markdown files in `eval/pages/` |
 
 The seeder does not import content. The importer expects the seeder (or
@@ -20,12 +21,13 @@ accounts first.
 ## Prerequisites
 
 1. Start the Docker Compose services with `make dev`.
-2. Apply the database migrations with `make migrate`.
-3. Seed the baseline records before importing pages.
+2. Seed the baseline records before importing pages.
 
-The API container mounts the repository at `/app`, so both scripts can read the
-repository files there. Run the importer from the repository root because its
-input directory is the relative path `eval/pages`.
+`make dev` builds the API image and the API container applies migrations before
+seeding the platform super-super admin and starting the server. The API
+container mounts the repository at `/app`, so both scripts can read repository
+files there. Run the importer from the repository root because its input
+directory is the relative path `eval/pages`.
 
 ## Running the seeder
 
@@ -81,6 +83,23 @@ Consequently, rerunning the seeder with a different password resets the seeded
 users' passwords. The script does not delete records absent from its constants,
 and does not deactivate unlisted users or organization units. All its database
 work is inside one transaction; the engine is disposed in a `finally` block.
+
+## Seeding the platform super-super admin
+
+Set `SUPER_SUPER_ADMIN_EMAIL` and `SUPER_SUPER_ADMIN_PASSWORD` in `.env`, then
+start the development stack:
+
+```sh
+make dev
+```
+
+On startup, the migration service applies the migrations and runs the script
+before the API starts. The script stores an Argon2id password hash, never the
+plaintext password. It leaves any existing super-super admin unchanged,
+regardless of email, and refuses to promote the configured email if it belongs
+to a non-super platform admin. A PostgreSQL advisory lock serializes concurrent
+seed runs. If both credential settings are absent, seeding is skipped;
+configuring only one is an error.
 
 ## Preparing Markdown pages
 
