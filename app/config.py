@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_TTL_SECONDS: int = 15 * 60
     REFRESH_TOKEN_TTL_SECONDS: int = 30 * 24 * 60 * 60
 
+    # Assets & Static File Storage (served by Nginx)
+    ASSETS_STORAGE_DIR: str = "/var/www/skyknow/assets"
+    ASSETS_PUBLIC_URL_PREFIX: str = "/assets"
+
     # Use exact origins, including scheme and port. Set this in your environment.
     CORS_ALLOWED_ORIGINS: list[str] = []
 

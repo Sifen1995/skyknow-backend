@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from app.modules.search.chunking import chunk_pages
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Column,
@@ -20,7 +21,6 @@ from sqlalchemy.dialects.postgresql import ENUM
 from app.ai_gateway.embeddings import OpenAIEmbeddingClient
 from app.config import settings
 from app.core.db import AsyncSessionLocal, async_engine
-from app.modules.search.chunking import chunk_pages
 
 _metadata = MetaData()
 _pages = Table(

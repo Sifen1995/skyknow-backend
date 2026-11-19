@@ -1,8 +1,10 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.composition.database import close_database
 from app.composition.redis import close_redis
@@ -11,16 +13,16 @@ from app.core.errors import register_error_handlers
 from app.core.logging import setup_logging
 from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.routers.health import router as health_router
-from app.routers.pages import router as pages_router
 from app.routers.platform_admin import router as platform_admin_router
 from app.routers.security import require_authenticated_user
+from app.routers.tenants import router as tenants_router
 
 public_router = APIRouter()
 public_router.include_router(health_router)
 public_router.include_router(platform_admin_router, prefix=settings.API_V1_STR)
+public_router.include_router(tenants_router, prefix=settings.API_V1_STR)
 
 secured_router = APIRouter(dependencies=[Depends(require_authenticated_user)])
-secured_router.include_router(pages_router, prefix=settings.API_V1_STR)
 
 
 @asynccontextmanager
@@ -53,3 +55,7 @@ register_error_handlers(app)
 
 app.include_router(public_router)
 app.include_router(secured_router)
+
+# Mount static assets for local dev fallback (in production, NGINX intercepts /assets/ directly)
+Path(settings.ASSETS_STORAGE_DIR).mkdir(parents=True, exist_ok=True)
+app.mount("/assets", StaticFiles(directory=settings.ASSETS_STORAGE_DIR), name="assets")

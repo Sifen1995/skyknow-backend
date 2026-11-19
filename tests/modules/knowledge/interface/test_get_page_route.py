@@ -1,15 +1,15 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from app.composition.knowledge.wiring import get_visible_page_by_id_use_case
 from app.modules.identity.application.functionality_usecases.authenticate_access_token import (
     AuthenticatedUser,
 )
-from fastapi.testclient import TestClient
-
-from app.composition.knowledge.wiring import get_visible_page_by_id_use_case
-from app.main import app
 from app.modules.knowledge.application.get_visible_page_by_id import GetVisiblePageById
 from app.modules.knowledge.domain.page_repository import PageByIdResult
+from fastapi.testclient import TestClient
+
+from app.main import app
 from app.routers.security import require_authenticated_user
 
 

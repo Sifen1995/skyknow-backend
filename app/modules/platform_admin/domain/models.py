@@ -11,14 +11,12 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import CITEXT, UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.base import GlobalBase
 
 
-class Base(DeclarativeBase):
-    pass
-
-
-class PlatformAdmin(Base):
+class PlatformAdmin(GlobalBase):
     """The global platform administrators table."""
 
     __tablename__ = "platform_admins"
@@ -39,7 +37,7 @@ class PlatformAdmin(Base):
     )
 
 
-class PlatformAdminRefreshToken(Base):
+class PlatformAdminRefreshToken(GlobalBase):
     __tablename__ = "platform_admin_refresh_tokens"
 
     family_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)

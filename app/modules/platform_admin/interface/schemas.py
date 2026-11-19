@@ -3,11 +3,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 from app.modules.platform_admin.application.dtos import (
+    LogoutRequest,
     RefreshRequest,
     SuperUserRequest,
 )
 
 __all__ = [
+    "LogoutRequest",
     "RefreshRequest",
     "RefreshResponse",
     "SuperUserProfileResponse",

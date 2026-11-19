@@ -135,8 +135,7 @@ type = "layers"
 #       Composition lives outside bounded contexts in app.composition.
 containers = [
     "app.modules.platform_admin",
-    "app.modules.knowledge",
-    "app.modules.search",
+    "app.modules.tenants",
 ]
 layers = [
     # RULE: "|" puts two adapter layers on the SAME level and makes them independent.
@@ -169,8 +168,7 @@ type = "independence"
 #       importing each other's code.
 modules = [
     "app.modules.platform_admin",
-    "app.modules.knowledge",
-    "app.modules.search",
+    "app.modules.tenants",
 ]
 
 
