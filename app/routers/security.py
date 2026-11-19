@@ -16,6 +16,11 @@ class AuthenticatedUser:
     user_id: str
 
 
+@dataclass(frozen=True)
+class AuthenticatedPlatformAdmin:
+    admin_id: str
+
+
 async def require_trusted_origin(request: Request) -> None:
     origin = request.headers.get("origin")
     if not verify_trusted_origin(origin, settings.CORS_ALLOWED_ORIGINS):
@@ -60,3 +65,13 @@ async def require_authenticated_user(
         )
 
     return AuthenticatedUser(user_id=user_id)
+
+
+async def require_authenticated_platform_admin(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ],
+) -> AuthenticatedPlatformAdmin:
+    user = await require_authenticated_user(credentials)
+    return AuthenticatedPlatformAdmin(admin_id=user.user_id)

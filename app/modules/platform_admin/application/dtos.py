@@ -12,3 +12,7 @@ class RefreshRequest(BaseModel):
     family_id: UUID
     count: int
     refresh_token: str
+
+
+class LogoutRequest(BaseModel):
+    family_id: UUID

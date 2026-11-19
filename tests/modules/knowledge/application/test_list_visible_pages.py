@@ -2,7 +2,6 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-
 from app.modules.knowledge.application.errors import InvalidPageListRequestError
 from app.modules.knowledge.application.list_visible_pages import (
     ListVisiblePages,

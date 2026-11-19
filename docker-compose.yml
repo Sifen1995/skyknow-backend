@@ -73,6 +73,9 @@ services:
     image: skyknow-backend:dev
     container_name: skyknow_migration
     command: sh -c "alembic upgrade head && python -m scripts.seed.super_super_admin"
+    volumes:
+      - .:/app
+      - ./assets:/var/www/skyknow/assets
     env_file:
       - .env
     depends_on:
@@ -88,6 +91,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
+      - ./assets:/var/www/skyknow/assets
     ports:
       - "8000:8000"
     env_file:
@@ -100,7 +104,13 @@ services:
       redis:
         condition: service_healthy
       db-migrate:
-        condition: service_completed_successfully  
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s  
 
   # 5. Arq Background Worker Service (handles indexing, tasks, reminders)
   worker:

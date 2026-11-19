@@ -18,8 +18,8 @@ help:
 
 # --- Docker Environment Management ---
 dev:
-	docker compose up -d --build
-	@echo "Services started. FastAPI is running on http://localhost:8000"
+	@docker compose up -d --build --wait || { echo "\n[ERROR] Service startup failed! Recent logs from api:"; docker compose logs api --tail 50; exit 1; }
+	@echo "Services started successfully and API is healthy. FastAPI is running on http://localhost:8000"
 
 down:
 	docker compose down

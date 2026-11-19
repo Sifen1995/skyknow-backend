@@ -4,8 +4,6 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.dialects import postgresql
-
 from app.modules.knowledge.domain.enums import TemplateType
 from app.modules.knowledge.domain.page_repository import (
     PageByIdResult,
@@ -16,6 +14,7 @@ from app.modules.knowledge.domain.page_repository import (
 from app.modules.knowledge.infrastructure.sqlalchemy_page_repository import (
     SqlAlchemyPageRepository,
 )
+from sqlalchemy.dialects import postgresql
 
 
 class FakeResult:
