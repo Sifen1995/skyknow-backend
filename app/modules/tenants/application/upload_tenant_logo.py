@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 from app.modules.tenants.application.errors import (
@@ -37,7 +36,7 @@ class UploadTenantLogo:
         content_type: str | None,
         filename: str | None = None,
     ) -> str:
-        clean_subdomain = re.sub(r"[^a-z0-9]", "_", subdomain.lower()).strip("_")
+        clean_subdomain = subdomain.strip().lower()
         tenant = await self._tenant_repo.get_by_subdomain(clean_subdomain)
         if tenant is None:
             raise TenantNotFoundError(

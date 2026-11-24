@@ -1,4 +1,4 @@
-.PHONY: help dev up down build logs migrate seed seed-super-super-admin test lint clean
+.PHONY: help dev down build logs migrate seed seed-super-super-admin test test-newman test-api lint clean
 
 # Default target when you just run 'make'
 help:
@@ -13,6 +13,8 @@ help:
 	@echo "  make seed         - Seed users (SEED_USER_PASSWORD must be 8+ characters)"
 	@echo "  make seed-super-super-admin - Seed the configured platform super-super admin"
 	@echo "  make test         - Run pytest integration and unit tests"
+	@echo "  make test-newman  - Run automated Postman integration test suite via Docker"
+	@echo "  make test-api     - Alias for make test-newman"
 	@echo "  make lint         - Run Ruff, Mypy, and import-linter locally"
 	@echo "  make clean        - Remove python cache, build files, and temporary artifacts"
 
@@ -47,6 +49,17 @@ seed-super-super-admin:
 # --- Testing & Code Quality ---
 test:
 	docker compose exec api pytest -v --cov=app
+
+test-newman:
+	@if command -v newman >/dev/null 2>&1; then \
+		echo "Running Postman test suite with local newman..."; \
+		newman run postman/collections/skyknow_api.postman_collection.json -e postman/environments/skyknow_api.postman_environment.json --reporters cli; \
+	else \
+		echo "Running Postman test suite via container (postman/newman:alpine)..."; \
+		docker run --rm --network host -v "$$(pwd):/workspace" -w /workspace postman/newman:alpine run postman/collections/skyknow_api.postman_collection.json -e postman/environments/skyknow_api.postman_environment.json --reporters cli; \
+	fi
+
+test-api: test-newman
 
 lint:
 	uv sync --locked --all-groups

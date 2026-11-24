@@ -13,6 +13,7 @@ from app.core.errors import register_error_handlers
 from app.core.logging import setup_logging
 from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.routers.health import router as health_router
+from app.routers.identity import router as identity_router
 from app.routers.platform_admin import router as platform_admin_router
 from app.routers.security import require_authenticated_user
 from app.routers.tenants import router as tenants_router
@@ -21,6 +22,7 @@ public_router = APIRouter()
 public_router.include_router(health_router)
 public_router.include_router(platform_admin_router, prefix=settings.API_V1_STR)
 public_router.include_router(tenants_router, prefix=settings.API_V1_STR)
+public_router.include_router(identity_router, prefix=settings.API_V1_STR)
 
 secured_router = APIRouter(dependencies=[Depends(require_authenticated_user)])
 
@@ -46,7 +48,13 @@ app.add_middleware(
     allow_origins=settings.CORS_ALLOWED_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-Tenant-Subdomain",
+        "X-Tenant",
+        "X-Request-ID",
+    ],
 )
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -57,5 +65,10 @@ app.include_router(public_router)
 app.include_router(secured_router)
 
 # Mount static assets for local dev fallback (in production, NGINX intercepts /assets/ directly)
-Path(settings.ASSETS_STORAGE_DIR).mkdir(parents=True, exist_ok=True)
-app.mount("/assets", StaticFiles(directory=settings.ASSETS_STORAGE_DIR), name="assets")
+try:
+    Path(settings.ASSETS_STORAGE_DIR).mkdir(parents=True, exist_ok=True)
+    app.mount(
+        "/assets", StaticFiles(directory=settings.ASSETS_STORAGE_DIR), name="assets"
+    )
+except OSError:
+    pass

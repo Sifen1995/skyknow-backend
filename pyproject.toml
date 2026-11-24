@@ -136,6 +136,7 @@ type = "layers"
 containers = [
     "app.modules.platform_admin",
     "app.modules.tenants",
+    "app.modules.identity",
 ]
 layers = [
     # RULE: "|" puts two adapter layers on the SAME level and makes them independent.
@@ -169,6 +170,7 @@ type = "independence"
 modules = [
     "app.modules.platform_admin",
     "app.modules.tenants",
+    "app.modules.identity",
 ]
 
 

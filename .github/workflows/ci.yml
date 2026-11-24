@@ -36,3 +36,41 @@ jobs:
 
       - name: Run Architecture Linter (DDD Boundaries)
         run: uv run --locked lint-imports
+
+  newman-integration-tests:
+    name: Newman API Automation Tests
+    runs-on: ubuntu-latest
+    needs: quality-and-tests
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Environment File
+        run: cp .env.example .env
+
+      - name: Start Docker Services
+        run: docker compose up -d --build --wait
+
+      - name: Run Database Migrations
+        run: docker compose exec -T api alembic upgrade head
+
+      - name: Seed Super-Super Admin
+        run: docker compose exec -T api python -m scripts.seed.super_super_admin
+
+      - name: Run Postman / Newman Test Suite
+        run: |
+          docker run --rm --network host \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            postman/newman:alpine run postman/collections/skyknow_api.postman_collection.json \
+            -e postman/environments/skyknow_api.postman_environment.json \
+            --reporters cli
+
+      - name: Collect Container Logs on Failure
+        if: failure()
+        run: docker compose logs api --tail 100
+
+      - name: Stop Docker Services
+        if: always()
+        run: docker compose down -v

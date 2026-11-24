@@ -1,0 +1,889 @@
+{
+  "info": {
+    "_postman_id": "a90f8452-f32a-4bc4-9d10-3849182312ab",
+    "name": "SkyKnow Enterprise API Integration Suite",
+    "description": "End-to-end automated Postman/Newman integration test suite for the SkyKnow Multi-Tenant Knowledge Platform.\n\nCovers:\n1. Health Check\n2. Platform Admin Authentication & Token Rotation\n3. Tenant Lifecycle (Provisioning, Logo Upload, Dynamic Schema Creation)\n4. Public Tenant Branding (Header & Path Param Resolution)\n5. Tenant Identity Authentication (Admin Role Resolution via Redis Cache, Refresh, Logout)\n6. Automated Teardown & Schema Cleanup (Dropping Schema, Deleting Assets, Clearing Redis)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Health status is ok\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql(\"ok\");",
+                  "    pm.expect(jsonData.version).to.be.a(\"string\");",
+                  "    pm.expect(jsonData.environment).to.be.a(\"string\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Verifies that the SkyKnow backend application is live, responsive, and reports healthy status."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Platform Admin",
+      "item": [
+        {
+          "name": "01 Platform Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains valid platform tokens and admin profile\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.access_token) {",
+                  "        pm.environment.set(\"platform_access_token\", jsonData.access_token);",
+                  "        pm.environment.set(\"platform_refresh_token\", jsonData.refresh_token);",
+                  "        pm.environment.set(\"platform_family_id\", jsonData.family_id);",
+                  "        pm.environment.set(\"platform_generation\", jsonData.current_generation);",
+                  "    }",
+                  "    pm.expect(jsonData).to.have.property(\"access_token\");",
+                  "    pm.expect(jsonData).to.have.property(\"refresh_token\");",
+                  "    pm.expect(jsonData).to.have.property(\"family_id\");",
+                  "    pm.expect(jsonData).to.have.property(\"current_generation\");",
+                  "    pm.expect(jsonData.token_type).to.eql(\"bearer\");",
+                  "    pm.expect(jsonData.admin.email).to.eql(pm.environment.get(\"super_admin_email\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{super_admin_email}}\",\n  \"password\": \"{{super_admin_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/platform-admin/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform-admin",
+                "login"
+              ]
+            },
+            "description": "Authenticates the platform super-super admin, extracting access token, refresh token family, and generation."
+          },
+          "response": []
+        },
+        {
+          "name": "02 Platform Admin Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Refresh token family rotated to generation 2\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.access_token) {",
+                  "        pm.environment.set(\"platform_access_token\", jsonData.access_token);",
+                  "        pm.environment.set(\"platform_refresh_token\", jsonData.refresh_token);",
+                  "        pm.environment.set(\"platform_generation\", jsonData.current_generation);",
+                  "    }",
+                  "    pm.expect(jsonData).to.have.property(\"access_token\");",
+                  "    pm.expect(jsonData).to.have.property(\"refresh_token\");",
+                  "    pm.expect(jsonData.family_id).to.eql(pm.environment.get(\"platform_family_id\"));",
+                  "    pm.expect(jsonData.current_generation).to.eql(2);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"family_id\": \"{{platform_family_id}}\",\n  \"count\": {{platform_generation}},\n  \"refresh_token\": \"{{platform_refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/platform-admin/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform-admin",
+                "refresh"
+              ]
+            },
+            "description": "Rotates platform admin refresh token atomically and increments the family generation counter."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Tenant Management",
+      "item": [
+        {
+          "name": "01 Pre-clean Stale Test Tenant (Idempotent)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Pre-cleaning completed (200 OK or 404 Not Found)\", function () {",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{platform_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/platform-admin/tenants/{{tenant_subdomain}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform-admin",
+                "tenants",
+                "{{tenant_subdomain}}"
+              ]
+            },
+            "description": "Ensures the test tenant environment is clean before starting the provisioning scenario."
+          },
+          "response": []
+        },
+        {
+          "name": "02 Provision Tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tenant provisioned with dedicated schema and admin\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.tenant_id) {",
+                  "        pm.environment.set(\"tenant_id\", jsonData.tenant_id);",
+                  "    }",
+                  "    pm.expect(jsonData.subdomain).to.eql(pm.environment.get(\"tenant_subdomain\"));",
+                  "    pm.expect(jsonData.admin_email).to.eql(pm.environment.get(\"tenant_admin_email\"));",
+                  "    pm.expect(jsonData.schema_name).to.eql(\"tenant_\" + pm.environment.get(\"tenant_subdomain\"));",
+                  "    pm.expect(jsonData.hosting_mode).to.eql(\"shared\");",
+                  "    pm.expect(jsonData.tenant_id).to.be.a(\"string\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{platform_access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "subdomain",
+                  "value": "{{tenant_subdomain}}",
+                  "type": "text"
+                },
+                {
+                  "key": "admin_email",
+                  "value": "{{tenant_admin_email}}",
+                  "type": "text"
+                },
+                {
+                  "key": "admin_name",
+                  "value": "{{tenant_admin_name}}",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "{{tenant_name}}",
+                  "type": "text"
+                },
+                {
+                  "key": "temporary_password",
+                  "value": "{{tenant_admin_password}}",
+                  "type": "text"
+                },
+                {
+                  "key": "hosting_mode",
+                  "value": "shared",
+                  "type": "text"
+                },
+                {
+                  "key": "primary_color",
+                  "value": "{{tenant_primary_color}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/platform-admin/tenants",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform-admin",
+                "tenants"
+              ]
+            },
+            "description": "Provisions a new tenant, dynamically creating an isolated PostgreSQL schema, seeding roles, and creating the tenant admin."
+          },
+          "response": []
+        },
+        {
+          "name": "03 Upload Tenant Brand Logo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Brand logo URL returned and saved\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.subdomain).to.eql(pm.environment.get(\"tenant_subdomain\"));",
+                  "    pm.expect(jsonData.logo_url).to.be.a(\"string\");",
+                  "    pm.expect(jsonData.logo_url).to.include(\"/assets/tenants/\" + pm.environment.get(\"tenant_subdomain\"));",
+                  "",
+                  "    pm.environment.set(\"tenant_logo_url\", jsonData.logo_url);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{platform_access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "postman/fixtures/test_logo.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/platform-admin/tenants/{{tenant_subdomain}}/logo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform-admin",
+                "tenants",
+                "{{tenant_subdomain}}",
+                "logo"
+              ]
+            },
+            "description": "Uploads a tenant brand logo file to disk and updates the tenant database record."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 Public Tenant Branding",
+      "item": [
+        {
+          "name": "01 Get Branding via Header",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Branding details match provisioned tenant\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.subdomain).to.eql(pm.environment.get(\"tenant_subdomain\"));",
+                  "    pm.expect(jsonData.name).to.eql(pm.environment.get(\"tenant_name\"));",
+                  "    pm.expect(jsonData.primary_color).to.eql(pm.environment.get(\"tenant_primary_color\"));",
+                  "    pm.expect(jsonData.logo_url).to.not.be.null;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-Subdomain",
+                "value": "{{tenant_subdomain}}",
+                "type": "text"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tenants/branding",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "branding"
+              ]
+            },
+            "description": "Resolves public branding metadata using the 'X-Tenant-Subdomain' header."
+          },
+          "response": []
+        },
+        {
+          "name": "02 Get Branding via Path Param",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Branding details match by path parameter\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.subdomain).to.eql(pm.environment.get(\"tenant_subdomain\"));",
+                  "    pm.expect(jsonData.name).to.eql(pm.environment.get(\"tenant_name\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tenants/branding/{{tenant_subdomain}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "branding",
+                "{{tenant_subdomain}}"
+              ]
+            },
+            "description": "Resolves public branding metadata using a path parameter identifier."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 Tenant Identity & Role Auth",
+      "item": [
+        {
+          "name": "01 Tenant Admin Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tenant Admin authenticated with role determined from Redis-cached schema roles\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.access_token) {",
+                  "        pm.environment.set(\"tenant_access_token\", jsonData.access_token);",
+                  "        pm.environment.set(\"tenant_refresh_token\", jsonData.refresh_token);",
+                  "        pm.environment.set(\"tenant_family_id\", jsonData.family_id);",
+                  "        pm.environment.set(\"tenant_generation\", jsonData.current_generation);",
+                  "    }",
+                  "    pm.expect(jsonData).to.have.property(\"access_token\");",
+                  "    pm.expect(jsonData).to.have.property(\"refresh_token\");",
+                  "    pm.expect(jsonData).to.have.property(\"family_id\");",
+                  "    pm.expect(jsonData.token_type).to.eql(\"bearer\");",
+                  "    pm.expect(jsonData.user.email).to.eql(pm.environment.get(\"tenant_admin_email\"));",
+                  "    pm.expect(jsonData.user.is_admin).to.be.true;",
+                  "    pm.expect(jsonData.user.role.toLowerCase()).to.eql(\"admin\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Subdomain",
+                "value": "{{tenant_subdomain}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{tenant_admin_email}}\",\n  \"password\": \"{{tenant_admin_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/identity/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "identity",
+                "login"
+              ]
+            },
+            "description": "Authenticates tenant user/admin against tenant schema, resolving admin privileges via role_id and Redis cache."
+          },
+          "response": []
+        },
+        {
+          "name": "02 Tenant Refresh Token Rotation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tenant refresh token family rotated to generation 2\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.access_token) {",
+                  "        pm.environment.set(\"tenant_access_token\", jsonData.access_token);",
+                  "        pm.environment.set(\"tenant_refresh_token\", jsonData.refresh_token);",
+                  "        pm.environment.set(\"tenant_generation\", jsonData.current_generation);",
+                  "    }",
+                  "    pm.expect(jsonData).to.have.property(\"access_token\");",
+                  "    pm.expect(jsonData).to.have.property(\"refresh_token\");",
+                  "    pm.expect(jsonData.family_id).to.eql(pm.environment.get(\"tenant_family_id\"));",
+                  "    pm.expect(jsonData.current_generation).to.eql(2);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Subdomain",
+                "value": "{{tenant_subdomain}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"family_id\": \"{{tenant_family_id}}\",\n  \"count\": {{tenant_generation}},\n  \"refresh_token\": \"{{tenant_refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/identity/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "identity",
+                "refresh"
+              ]
+            },
+            "description": "Rotates tenant refresh token inside tenant schema's refresh_tokens table."
+          },
+          "response": []
+        },
+        {
+          "name": "03 Tenant Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tenant session successfully invalidated\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.message).to.eql(\"Successfully logged out\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "X-Tenant-Subdomain",
+                "value": "{{tenant_subdomain}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"family_id\": \"{{tenant_family_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/identity/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "identity",
+                "logout"
+              ]
+            },
+            "description": "Revokes the tenant user's refresh token family."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 Teardown & Invalidation",
+      "item": [
+        {
+          "name": "01 Delete Tenant (Drop Schema, Disk Assets & Cache)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tenant deletion confirmation received\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.subdomain).to.eql(pm.environment.get(\"tenant_subdomain\"));",
+                  "    pm.expect(jsonData.message).to.include(\"successfully deleted\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{platform_access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/platform-admin/tenants/{{tenant_subdomain}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform-admin",
+                "tenants",
+                "{{tenant_subdomain}}"
+              ]
+            },
+            "description": "Completely deletes the test tenant: drops schema CASCADE, deletes row in public.tenants, removes disk assets, and clears Redis cache."
+          },
+          "response": []
+        },
+        {
+          "name": "02 Verify Tenant Cleanup (404 Not Found)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tenants/branding/{{tenant_subdomain}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants",
+                "branding",
+                "{{tenant_subdomain}}"
+              ]
+            },
+            "description": "Verifies that branding queries for the deleted tenant now fail with 404."
+          },
+          "response": []
+        },
+        {
+          "name": "03 Platform Admin Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Origin",
+                "value": "{{origin}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"family_id\": \"{{platform_family_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/platform-admin/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "platform-admin",
+                "logout"
+              ]
+            },
+            "description": "Revokes the platform admin refresh token family."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

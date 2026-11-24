@@ -9,6 +9,7 @@ from app.composition.platform_admin import (
     get_platform_admin_refresh_use_case,
 )
 from app.composition.tenants import (
+    get_delete_tenant_use_case,
     get_provision_tenant_use_case,
     get_upload_tenant_logo_use_case,
 )
@@ -23,10 +24,12 @@ from app.modules.platform_admin.interface.schemas import (
     SuperUserRequest,
     SuperUserResponse,
 )
+from app.modules.tenants.application.delete_tenant import DeleteTenant
 from app.modules.tenants.application.dtos import ProvisionTenantInput
 from app.modules.tenants.application.provision_tenant import ProvisionTenant
 from app.modules.tenants.application.upload_tenant_logo import UploadTenantLogo
 from app.modules.tenants.interface.schemas import (
+    DeleteTenantResponse,
     ProvisionTenantForm,
     ProvisionTenantResponse,
     UploadTenantLogoResponse,
@@ -220,4 +223,35 @@ async def upload_tenant_logo(
     return UploadTenantLogoResponse(
         subdomain=subdomain,
         logo_url=logo_url,
+    )
+
+
+@router.delete(
+    "/tenants/{subdomain}",
+    response_model=DeleteTenantResponse,
+    summary="Delete a tenant",
+    description=(
+        "Completely deletes a tenant from the database (including dropping its dedicated schema "
+        "and all associated tables/objects), removes its uploaded brand logo and assets from disk "
+        "(served by Nginx), and invalidates all cached tenant entries in Redis."
+    ),
+    dependencies=[
+        Depends(require_trusted_origin),
+        Depends(require_authenticated_platform_admin),
+    ],
+    responses={
+        200: {"description": "Tenant and assets deleted successfully."},
+        401: {"description": "Authentication required."},
+        403: {"description": "Untrusted request origin."},
+        404: {"description": "Tenant was not found."},
+    },
+)
+async def delete_tenant(
+    subdomain: str,
+    use_case: Annotated[DeleteTenant, Depends(get_delete_tenant_use_case)],
+) -> DeleteTenantResponse:
+    await use_case.execute(subdomain=subdomain)
+    return DeleteTenantResponse(
+        subdomain=subdomain,
+        message=f"Tenant '{subdomain}' and all its assets have been successfully deleted.",
     )
