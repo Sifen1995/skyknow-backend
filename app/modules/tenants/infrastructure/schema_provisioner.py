@@ -172,3 +172,10 @@ class PostgresTenantSchemaProvisioner(TenantSchemaProvisioner):
             ) from exc
         finally:
             await self._session.execute(text("SET search_path TO public"))
+
+    async def drop_schema(self, *, subdomain: str) -> None:
+        schema_name = generate_schema_name(subdomain)
+        await self._session.execute(text("SET search_path TO public"))
+        await self._session.execute(
+            text(f'DROP SCHEMA IF EXISTS "{schema_name}" CASCADE')
+        )

@@ -107,3 +107,12 @@ class SqlAlchemyTenantRepository(TenantRepository):
         self._session.add(tenant)
         await self._session.flush()
         return tenant
+
+    async def delete_tenant(self, *, subdomain: str) -> bool:
+        await self._ensure_table_exists()
+        tenant = await self.get_by_subdomain(subdomain)
+        if tenant is None:
+            return False
+        await self._session.delete(tenant)
+        await self._session.flush()
+        return True

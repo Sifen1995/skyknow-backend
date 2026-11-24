@@ -35,6 +35,7 @@ def create_access_token(
     secret_key: str,
     algorithm: str,
     expires_seconds: int,
+    extra_claims: dict[str, Any] | None = None,
 ) -> str:
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
@@ -43,6 +44,8 @@ def create_access_token(
         "iat": now,
         "exp": now + timedelta(seconds=expires_seconds),
     }
+    if extra_claims:
+        payload.update(extra_claims)
     return jwt.encode(payload, secret_key, algorithm=algorithm)
 
 

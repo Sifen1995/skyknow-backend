@@ -1,9 +1,6 @@
 from uuid import uuid4
 
 import pytest
-from app.composition.identity.wiring import (
-    get_authenticate_access_token_use_case,
-)
 from app.modules.identity.application.functionality_usecases.authenticate_access_token import (
     AuthenticatedUser,
 )
@@ -11,6 +8,9 @@ from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.testclient import TestClient
 
+from app.composition.identity.wiring import (
+    get_authenticate_access_token_use_case,
+)
 from app.main import app
 from app.routers.security import require_authenticated_user
 

@@ -40,6 +40,10 @@ class TenantRepository(Protocol):
         """Insert and return a newly registered tenant."""
         ...
 
+    async def delete_tenant(self, *, subdomain: str) -> bool:
+        """Delete tenant record from public schema."""
+        ...
+
 
 class TenantSchemaProvisioner(Protocol):
     async def provision_schema(
@@ -55,4 +59,14 @@ class TenantSchemaProvisioner(Protocol):
         seed the default roles and org units, and create the initial tenant admin user.
         Returns the created admin user's UUID.
         """
+        ...
+
+    async def drop_schema(self, *, subdomain: str) -> None:
+        """Drop the tenant's dedicated PostgreSQL schema and all its objects."""
+        ...
+
+
+class TenantCacheCleaner(Protocol):
+    async def clear_tenant_cache(self, *, subdomain: str) -> None:
+        """Clear cached tenant entries (such as roles and sessions) from Redis."""
         ...

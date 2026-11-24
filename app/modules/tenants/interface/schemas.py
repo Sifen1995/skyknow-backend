@@ -185,3 +185,8 @@ class UploadTenantLogoResponse(BaseModel):
     subdomain: str
     logo_url: str
     message: str = "Tenant logo uploaded successfully."
+
+
+class DeleteTenantResponse(BaseModel):
+    subdomain: str
+    message: str = "Tenant and all associated assets deleted successfully."

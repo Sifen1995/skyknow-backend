@@ -70,10 +70,20 @@ class InMemoryTenantRepository:
             self.tenants_by_custom_domain[custom_domain] = tenant
         return tenant
 
+    async def delete_tenant(self, *, subdomain: str) -> bool:
+        tenant = self.tenants_by_subdomain.pop(subdomain, None)
+        if tenant and tenant.custom_domain:
+            self.tenants_by_custom_domain.pop(tenant.custom_domain, None)
+        return tenant is not None
+
 
 class InMemorySchemaProvisioner:
     def __init__(self) -> None:
         self.provisioned_schemas: list[dict[str, object]] = []
+        self.dropped_schemas: list[str] = []
+
+    async def drop_schema(self, *, subdomain: str) -> None:
+        self.dropped_schemas.append(subdomain)
 
     async def provision_schema(
         self,
